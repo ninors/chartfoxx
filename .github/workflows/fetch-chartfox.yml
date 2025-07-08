@@ -1,0 +1,37 @@
+name: Fetch ChartFox Charts
+
+on:
+  workflow_dispatch:
+    inputs:
+      icao:
+        description: 'Code OACI de l’aéroport (ex: LFPG)'
+        required: true
+
+jobs:
+  fetch_chartfox:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Fetch ChartFox charts via PowerShell
+        env:
+          CHARTFOX_TOKEN: ${{ secrets.CHARTFOX_TOKEN }}
+        shell: pwsh
+        run: |
+          $icao = '${{ github.event.inputs.icao }}'
+          $headers = @{ "Authorization" = "Bearer $env:CHARTFOX_TOKEN" }
+          $url = "https://api.chartfox.org/v2/airport/$icao"
+          Write-Host "Fetching charts for airport $icao ..."
+          $response = Invoke-WebRequest -Uri $url -Headers $headers -Method GET
+          $response.Content | Out-File -FilePath "data/charts-$icao.json" -Encoding utf8
+          Write-Host "Charts saved to data/charts-$icao.json"
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/charts-*.json
+          git commit -m "Update ChartFox charts for ${{ github.event.inputs.icao }}" || echo "No changes to commit"
+          git push
